@@ -11,10 +11,6 @@ to_number = '+33635960569'
 
 client = Client(account_sid, auth_token)
 
-# Numéro Twilio et destinataire
-from_phone_number = '+12524866318'  # Ton numéro Twilio
-to_phone_number = '+33635960569'  # Le numéro de téléphone où tu veux recevoir les SMS (remplace par ton propre numéro)
-
 def send_sms(ip_address, user_agent):
     body = f"IP Address: {ip_address}\nUser Agent: {user_agent}"
     try:
