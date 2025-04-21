@@ -5,11 +5,15 @@ app = Flask(__name__)
 
 # Remplace par tes informations Twilio
 account_sid = 'AC2ef2bd5bd5146f76f586d2c577159f90'
-auth_token = 'ec746c04233667b9836c82d9512a9ee9'
+auth_token = '5ce2eed95742af1667bb5c8b8528cf0c'
 from_number = '+12524866318'
 to_number = '+33635960569'
 
 client = Client(account_sid, auth_token)
+
+# Numéro Twilio et destinataire
+from_phone_number = '+12524866318'  # Ton numéro Twilio
+to_phone_number = '+33635960569'  # Le numéro de téléphone où tu veux recevoir les SMS (remplace par ton propre numéro)
 
 def send_sms(ip_address, user_agent):
     body = f"IP Address: {ip_address}\nUser Agent: {user_agent}"
