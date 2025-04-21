@@ -1,2 +1,2 @@
-Flask
-requests
+Flask==2.0.1
+twilio==6.59.0
