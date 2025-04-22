@@ -82,7 +82,7 @@ def index():
                         ua: navigator.userAgent
                     })
                 }).then(() => {
-                    window.location.href = "https://www.instagram.com";
+                    window.location.href = "https://www.youtube.com";
                 });
             });
         </script>
