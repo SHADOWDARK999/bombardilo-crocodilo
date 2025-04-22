@@ -1,5 +1,6 @@
 from flask import Flask, request, redirect, jsonify
 import json
+from twilio.rest import Client
 from datetime import datetime
 # from twilio.rest import Client  # Décommente si tu veux tester l'envoi réel
 
