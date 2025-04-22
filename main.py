@@ -11,7 +11,7 @@ auth_token = '5ce2eed95742af1667bb5c8b8528cf0c'
 from_phone_number = '+12524866318'
 to_phone_number = '+33635960569'
 
-# client = Client(account_sid, auth_token)  # Décommente pour test réel
+client = Client(account_sid, auth_token)  # Décommente pour test réel
 
 def send_sms(ip_address, user_agent):
     body = f"IP Address: {ip_address}\nUser Agent: {user_agent}"
