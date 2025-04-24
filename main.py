@@ -6,10 +6,10 @@ import socket
 app = Flask(__name__)
 
 # Twilio credentials
-account_sid = 'TON_ACCOUNT_SID'
-auth_token = 'TON_AUTH_TOKEN'
+account_sid = 'AC2ef2bd5bd5146f76f586d2c577159f90'
+auth_token = 'ab95f4ee6a016c23b123670550a6cde7'
 from_number = '+12524866318'
-to_number = '+336XXXXXXXX'
+to_number = '+33635960569'
 
 client = Client(account_sid, auth_token)
 
